@@ -12,7 +12,7 @@ const STATE = {
   ws: null,
   reconnectAttempts: 0,
   pingInterval: null,
-  activePlayerType: null, // "youtube" | "native" | null
+  activePlayerType: null,
   ytPlayer: null,
   ytReady: false,
   isApplyingRemote: false,
@@ -76,7 +76,10 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 window.addEventListener("hashchange", () => {
-  initRouting();
+  const hash = window.location.hash.replace(/^#\/?/, "");
+  if (hash && hash !== STATE.roomId) {
+    enterRoom(hash);
+  }
 });
 
 window.onYouTubeIframeAPIReady = () => {
@@ -112,7 +115,6 @@ inputNickname.addEventListener("change", () => {
 function initRouting() {
   const hash = window.location.hash.replace(/^#\/?/, "");
   if (hash.length > 2) {
-    inputRoomId.value = hash;
     enterRoom(hash);
   }
 }
@@ -127,20 +129,21 @@ btnJoinRoom.addEventListener("click", () => {
   if (rid) {
     enterRoom(rid);
   } else {
-    showToast("Введите код комнаты");
+    showToast("Введите код комнаты (например: room-xyz)");
+    inputRoomId.focus();
   }
 });
 
 function enterRoom(roomId) {
-  if (STATE.roomId === roomId && STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
-    return;
+  STATE.roomId = roomId;
+
+  if (window.location.hash !== `#${roomId}`) {
+    window.location.hash = `#${roomId}`;
   }
 
-  STATE.roomId = roomId;
-  window.location.hash = `#${roomId}`;
-
-  elLobby.hidden = true;
-  elRoom.hidden = false;
+  // Принудительное переключение экранов
+  elLobby.setAttribute("hidden", "");
+  elRoom.removeAttribute("hidden");
   labelRoomId.textContent = roomId.toUpperCase();
 
   connectWebSocket(roomId);
@@ -157,6 +160,9 @@ function connectWebSocket(roomId) {
   const isLocal = BACKEND_HOST.includes("localhost") || BACKEND_HOST.includes("127.0.0.1");
   const protocol = isLocal ? "ws:" : "wss:";
   const wsUrl = `${protocol}//${BACKEND_HOST}/ws/${roomId}`;
+
+  updateSyncIndicator("syncing");
+  labelPing.textContent = "Connecting...";
 
   STATE.ws = new WebSocket(wsUrl);
 
@@ -192,7 +198,7 @@ function scheduleReconnect() {
   const delay = Math.min(1000 * Math.pow(1.5, STATE.reconnectAttempts), 10000);
   labelPing.textContent = "Reconnecting...";
   setTimeout(() => {
-    if (elRoom.hidden === false) {
+    if (!elRoom.hasAttribute("hidden")) {
       connectWebSocket(STATE.roomId);
     }
   }, delay);
@@ -574,15 +580,15 @@ btnDialogConfirm.addEventListener("click", () => {
 tabChat.addEventListener("click", () => {
   tabChat.classList.add("active");
   tabUsers.classList.remove("active");
-  paneChat.hidden = false;
-  paneUsers.hidden = true;
+  paneChat.removeAttribute("hidden");
+  paneUsers.setAttribute("hidden", "");
 });
 
 tabUsers.addEventListener("click", () => {
   tabUsers.classList.add("active");
   tabChat.classList.remove("active");
-  paneUsers.hidden = false;
-  paneChat.hidden = true;
+  paneUsers.removeAttribute("hidden");
+  paneChat.setAttribute("hidden", "");
 });
 
 btnCopyLink.addEventListener("click", async () => {

@@ -33,6 +33,11 @@
   --sp-5: 24px;
 }
 
+/* Принудительное скрытие экранов независимо от display */
+[hidden] {
+  display: none !important;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -437,7 +442,7 @@ body {
 }
 
 .tab-pane[hidden] {
-  display: none;
+  display: none !important;
 }
 
 .chat-messages {
