@@ -1,3 +1,217 @@
-<link rel="stylesheet" href="./style.css">
-<!-- и перед закрывающим тегом </body> -->
-<script type="module" src="./app.js"></script>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>SyncStream — Синхронный просмотр</title>
+  <link rel="stylesheet" href="./style.css">
+  <link rel="preconnect" href="https://www.youtube.com">
+</head>
+<body>
+  <!-- Экран 1: Лобби / Вход -->
+  <main id="view-lobby" class="lobby-screen" aria-label="Вход в сервис">
+    <div class="lobby-card">
+      <header class="lobby-header">
+        <div class="brand-mark">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            <line x1="19" y1="5" x2="19" y2="19"></line>
+          </svg>
+          <span class="brand-title">SyncStream</span>
+        </div>
+        <p class="brand-desc">Синхронный просмотр видео без авторизации и логов.</p>
+      </header>
+
+      <form id="form-lobby" class="lobby-form" onsubmit="return false;">
+        <div class="field">
+          <label for="input-nickname" class="field-label">Псевдоним</label>
+          <div class="input-action-wrap">
+            <input id="input-nickname" type="text" class="input-text" maxlength="24" placeholder="User_XXXX" autocomplete="off" spellcheck="false">
+            <button type="button" id="btn-dice" class="btn-icon" aria-label="Сгенерировать случайное имя">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                <circle cx="16" cy="8" r="1.5"></circle>
+                <circle cx="8" cy="16" r="1.5"></circle>
+                <circle cx="12" cy="12" r="1.5"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="button" id="btn-create-room" class="btn btn-primary btn-block">
+          Создать комнату
+        </button>
+
+        <div class="divider">
+          <span>или подключиться по ID</span>
+        </div>
+
+        <div class="join-cluster">
+          <input id="input-room-id" type="text" class="input-text" placeholder="Код комнаты (напр. room-8f12)" autocomplete="off">
+          <button type="button" id="btn-join-room" class="btn btn-secondary">
+            Войти
+          </button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <!-- Экран 2: Комната просмотра -->
+  <div id="view-room" class="room-screen" hidden>
+    <!-- Верхний бар комнаты -->
+    <header class="room-header">
+      <div class="room-meta">
+        <span class="status-indicator in-sync" id="sync-status-indicator" title="Статус синхронизации"></span>
+        <span class="room-tag" id="label-room-id">ROOM-XXXX</span>
+        <span class="network-ping" id="label-ping">-- ms</span>
+      </div>
+      <div class="room-actions">
+        <button id="btn-open-source" class="btn btn-sm btn-secondary" aria-label="Загрузить видео">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+          <span class="hide-mobile">Источник</span>
+        </button>
+        <button id="btn-copy-link" class="btn btn-sm btn-secondary" aria-label="Скопировать ссылку-приглашение">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span class="hide-mobile">Ссылка</span>
+        </button>
+        <button id="btn-toggle-chat-mode" class="btn btn-sm btn-icon show-landscape" aria-label="Открыть чат">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Основная сцена: Плеер -->
+    <section class="stage-section" aria-label="Медиаплеер">
+      <div id="player-wrapper" class="player-wrapper">
+        <!-- Native HTML5 Video -->
+        <video id="native-video" playsinline preload="auto" class="media-element"></video>
+        <!-- YouTube Target Container -->
+        <div id="youtube-player" class="media-element"></div>
+
+        <!-- Заглушка пустого плеера -->
+        <div id="player-placeholder" class="player-placeholder">
+          <div class="placeholder-content">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="placeholder-icon" aria-hidden="true">
+              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+              <line x1="7" y1="2" x2="7" y2="22"></line>
+              <line x1="17" y1="2" x2="17" y2="22"></line>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <line x1="2" y1="7" x2="7" y2="7"></line>
+              <line x1="2" y1="17" x2="7" y2="17"></line>
+              <line x1="17" y1="17" x2="22" y2="17"></line>
+              <line x1="17" y1="7" x2="22" y2="7"></line>
+            </svg>
+            <p class="placeholder-title">Видео не выбрано</p>
+            <p class="placeholder-subtitle">Вставьте ссылку на YouTube или прямой MP4/WebM файл</p>
+            <button id="btn-placeholder-add" class="btn btn-secondary btn-sm">Указать ссылку</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Кастомная панель управления плеером -->
+      <div class="controls-bar" id="controls-bar">
+        <button id="btn-play-pause" class="btn-ctrl" aria-label="Воспроизвести / Пауза">
+          <svg id="icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <svg id="icon-pause" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" hidden>
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+        </button>
+
+        <div class="timeline-container">
+          <input id="timeline-range" type="range" min="0" max="100" value="0" step="0.1" class="timeline-range" aria-label="Полоса воспроизведения">
+        </div>
+
+        <div class="timecode-display" id="timecode">00:00 / 00:00</div>
+
+        <button id="btn-fullscreen" class="btn-ctrl" aria-label="Полноэкранный режим">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- Нижняя зона: Чат и участники -->
+    <aside class="panel-section" id="interactive-panel" aria-label="Чат и список участников">
+      <nav class="panel-tabs" role="tablist">
+        <button id="tab-chat" class="tab-btn active" role="tab" aria-selected="true" aria-controls="pane-chat">Чат</button>
+        <button id="tab-users" class="tab-btn" role="tab" aria-selected="false" aria-controls="pane-users">
+          Участники (<span id="user-count">0</span>)
+        </button>
+      </nav>
+
+      <div class="tabs-body">
+        <!-- Вкладка чата -->
+        <section id="pane-chat" class="tab-pane active" role="tabpanel">
+          <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+          <form id="chat-form" class="chat-form" onsubmit="return false;">
+            <input id="chat-input" type="text" class="input-text chat-input" placeholder="Сообщение..." autocomplete="off" maxlength="500">
+            <button id="btn-send-message" type="submit" class="btn btn-primary btn-send" aria-label="Отправить">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </form>
+        </section>
+
+        <!-- Вкладка участников и настроек хоста -->
+        <section id="pane-users" class="tab-pane" role="tabpanel" hidden>
+          <div class="host-controls-box" id="host-controls-box">
+            <label class="toggle-control">
+              <input type="checkbox" id="check-host-only">
+              <span class="toggle-mark"></span>
+              <span class="toggle-label">Управление только для хоста</span>
+            </label>
+          </div>
+          <ul id="user-list" class="user-list" role="list"></ul>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Модальное окно выбора источника видео -->
+  <dialog id="dialog-source" class="modal-dialog" aria-labelledby="dialog-title">
+    <div class="modal-box">
+      <header class="modal-header">
+        <h2 id="dialog-title" class="modal-title">Подключить видео</h2>
+        <button id="btn-close-dialog" class="btn-icon" aria-label="Закрыть">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <p class="modal-hint">Поддерживаются прямые ссылки на YouTube (видео и shorts) или URL на MP4 / WebM файлы.</p>
+        <div class="field">
+          <label for="input-video-url" class="field-label">URL видео</label>
+          <input id="input-video-url" type="url" class="input-text" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false" autocomplete="off">
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <button id="btn-dialog-cancel" type="button" class="btn btn-secondary">Отмена</button>
+        <button id="btn-dialog-confirm" type="button" class="btn btn-primary">Запустить</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Всплывающий контейнер для уведомлений (Toasts) -->
+  <div id="toast-container" class="toast-container" aria-live="assertive"></div>
+
+  <!-- YouTube IFrame API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
