@@ -50,7 +50,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ================= ЛОББИ ================= */
 .lobby-screen {
   display: flex;
   align-items: center;
@@ -158,7 +157,6 @@ body {
   gap: var(--sp-2);
 }
 
-/* ================= КНОПКИ ================= */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -225,7 +223,6 @@ body {
   border-color: var(--hairline-strong);
 }
 
-/* ================= ЭКРАН КОМНАТЫ ================= */
 .room-screen {
   display: flex;
   flex-direction: column;
@@ -282,7 +279,6 @@ body {
   gap: var(--sp-2);
 }
 
-/* Сцена плеера */
 .stage-section {
   width: 100%;
   background: #000000;
@@ -340,7 +336,6 @@ body {
   margin-bottom: var(--sp-3);
 }
 
-/* Панель управления плеером */
 .controls-bar {
   height: 48px;
   background: var(--surface-panel);
@@ -396,7 +391,6 @@ body {
   white-space: nowrap;
 }
 
-/* Панель чата и участников */
 .panel-section {
   flex: 1;
   display: flex;
@@ -446,7 +440,6 @@ body {
   display: none;
 }
 
-/* Чат */
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -510,7 +503,6 @@ body {
   padding: 0;
 }
 
-/* Список участников */
 .user-list {
   list-style: none;
   padding: var(--sp-3);
@@ -551,7 +543,6 @@ body {
   color: var(--ink);
 }
 
-/* ================= МОДАЛКА ================= */
 .modal-dialog {
   border: none;
   background: transparent;
@@ -605,7 +596,6 @@ body {
   background: var(--surface-sunken);
 }
 
-/* ================= TOAST ================= */
 .toast-container {
   position: fixed;
   bottom: var(--sp-4);
@@ -633,7 +623,6 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ================= АДАПТИВНОСТЬ / ОРИЕНТАЦИЯ ================= */
 .show-landscape { display: none; }
 
 @media (min-width: 768px) {

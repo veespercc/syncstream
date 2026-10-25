@@ -47,7 +47,7 @@
         </div>
 
         <div class="join-cluster">
-          <input id="input-room-id" type="text" class="input-text" placeholder="Код комнаты (напр. room-8f12)" autocomplete="off">
+          <input id="input-room-id" type="text" class="input-text" placeholder="Код (напр. room-8f12)" autocomplete="off">
           <button type="button" id="btn-join-room" class="btn btn-secondary">
             Войти
           </button>
@@ -73,7 +73,7 @@
           </svg>
           <span class="hide-mobile">Источник</span>
         </button>
-        <button id="btn-copy-link" class="btn btn-sm btn-secondary" aria-label="Скопировать ссылку-приглашение">
+        <button id="btn-copy-link" class="btn btn-sm btn-secondary" aria-label="Скопировать ссылку">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -91,12 +91,9 @@
     <!-- Основная сцена: Плеер -->
     <section class="stage-section" aria-label="Медиаплеер">
       <div id="player-wrapper" class="player-wrapper">
-        <!-- Native HTML5 Video -->
         <video id="native-video" playsinline preload="auto" class="media-element"></video>
-        <!-- YouTube Target Container -->
         <div id="youtube-player" class="media-element"></div>
 
-        <!-- Заглушка пустого плеера -->
         <div id="player-placeholder" class="player-placeholder">
           <div class="placeholder-content">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="placeholder-icon" aria-hidden="true">
@@ -116,7 +113,7 @@
         </div>
       </div>
 
-      <!-- Кастомная панель управления плеером -->
+      <!-- Панель управления плеером -->
       <div class="controls-bar" id="controls-bar">
         <button id="btn-play-pause" class="btn-ctrl" aria-label="Воспроизвести / Пауза">
           <svg id="icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -152,7 +149,6 @@
       </nav>
 
       <div class="tabs-body">
-        <!-- Вкладка чата -->
         <section id="pane-chat" class="tab-pane active" role="tabpanel">
           <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
           <form id="chat-form" class="chat-form" onsubmit="return false;">
@@ -166,7 +162,6 @@
           </form>
         </section>
 
-        <!-- Вкладка участников и настроек хоста -->
         <section id="pane-users" class="tab-pane" role="tabpanel" hidden>
           <div class="host-controls-box" id="host-controls-box">
             <label class="toggle-control">
@@ -181,7 +176,7 @@
     </aside>
   </div>
 
-  <!-- Модальное окно выбора источника видео -->
+  <!-- Диалог источника видео -->
   <dialog id="dialog-source" class="modal-dialog" aria-labelledby="dialog-title">
     <div class="modal-box">
       <header class="modal-header">
@@ -207,10 +202,8 @@
     </div>
   </dialog>
 
-  <!-- Всплывающий контейнер для уведомлений (Toasts) -->
   <div id="toast-container" class="toast-container" aria-live="assertive"></div>
 
-  <!-- YouTube IFrame API -->
   <script src="https://www.youtube.com/iframe_api"></script>
   <script type="module" src="./app.js"></script>
 </body>

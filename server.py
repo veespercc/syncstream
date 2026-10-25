@@ -8,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="SyncStream Backend")
 
-# Разрешаем запросы с любых источников (включая GitHub Pages)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
