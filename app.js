@@ -1,7 +1,7 @@
 // --- КОНФИГУРАЦИЯ БЭКЕНДА ---
 // Локально: "localhost:8000"
 // На Render: "ваш-сервис.onrender.com"
-const BACKEND_HOST = "localhost:8000"; 
+const BACKEND_HOST = "https://syncstream-backend-6x4q.onrender.com/"; 
 
 // Замена функции initRouting на работу с hash:
 function initRouting() {
