@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
   <title>SyncStream — Синхронный медиа-просмотр</title>
   <link rel="stylesheet" href="./style.css">
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -97,13 +98,13 @@
     <section class="stage-container" aria-label="Проигрыватель">
       <div id="player-viewport" class="player-viewport">
         <!-- Нативный HTML5 / HLS плеер -->
-        <video id="native-video" class="media-layer" playsinline preload="auto"></video>
+        <video id="native-video" class="media-layer" playsinline preload="auto" referrerpolicy="no-referrer"></video>
 
         <!-- YouTube Iframe API Контейнер -->
         <div id="youtube-player" class="media-layer"></div>
 
         <!-- Универсальный веб-embed Iframe -->
-        <iframe id="embed-iframe" class="media-layer" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"></iframe>
+        <iframe id="embed-iframe" class="media-layer" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation" referrerpolicy="no-referrer" allowfullscreen></iframe>
 
         <!-- Заглушка пустого состояния -->
         <div id="player-empty" class="player-empty-state">

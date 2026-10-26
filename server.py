@@ -126,18 +126,21 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
             can_control = (not room.host_only_control) or (room.host_id == session.client_id)
 
             if event_type == "LOAD_SOURCE" and can_control:
-                room.video_type = data.get("videoType")
-                room.video_url = data.get("videoUrl")
+                raw_url = data.get("videoUrl", "")
+                
+                # Если вставили ссылку на страницу киносайта (а не прямой файл или ютуб)
+                if not any(x in raw_url for x in ["youtu.be", "youtube.com", ".m3u8", ".mp4", ".webm"]):
+                    resolved = await resolve_kinosite_url(raw_url)
+                    room.video_type = resolved["type"]
+                    room.video_url = resolved["url"]
+                else:
+                    room.video_type = data.get("videoType")
+                    room.video_url = raw_url
+
                 room.current_time = 0.0
                 room.is_playing = False
                 room.last_updated_at = time.time()
                 await broadcast(room, {"type": "SOURCE_CHANGED", "room": room.to_dict()})
-
-            elif event_type == "SYNC_ACTION" and can_control:
-                action = data.get("action")
-                target_time = max(0.0, float(data.get("time", 0.0)))
-                room.current_time = target_time
-                room.last_updated_at = time.time()
 
                 if action == "PLAY":
                     room.is_playing = True
@@ -189,6 +192,46 @@ async def broadcast(room: RoomState, message: dict):
             dead_clients.append(cid)
     for cid in dead_clients:
         await hub.remove_client(room.room_id, cid)
+
+import re
+import httpx
+from bs4 import BeautifulSoup
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+}
+
+async def resolve_kinosite_url(page_url: str) -> dict:
+    """
+    Парсит страницу киносайта, извлекая embed-ссылку плеера или прямой .m3u8
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers=HEADERS) as client:
+            resp = await client.get(page_url)
+            html = resp.text
+
+            # 1. Поиск прямого m3u8 прямо в исходном коде
+            m3u8_match = re.search(r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)', html)
+            if m3u8_match:
+                return {"type": "hls", "url": m3u8_match.group(1)}
+
+            # 2. Поиск плеера внутри тегов <iframe>
+            soup = BeautifulSoup(html, "html.parser")
+            for iframe in soup.find_all("iframe"):
+                src = iframe.get("src") or iframe.get("data-src") or ""
+                if src:
+                    if src.startswith("//"):
+                        src = "https:" + src
+                    # Балансеры: kodik, collaps, videocdn, alloha, voidboost, lumex и др.
+                    if any(balancer in src for balancer in ["kodik", "collaps", "cdn", "alloha", "embed", "player"]):
+                        return {"type": "iframe", "url": src}
+
+    except Exception as e:
+        print(f"Error resolving url {page_url}: {e}")
+
+    # Если не удалось распознать, отдаем как обычный веб-фрейм
+    return {"type": "iframe", "url": page_url}
 
 if __name__ == "__main__":
     import uvicorn
