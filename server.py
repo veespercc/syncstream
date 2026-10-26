@@ -6,7 +6,7 @@ from typing import Dict, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="SyncStream Backend")
+app = FastAPI(title="SyncStream Core")
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,7 +28,7 @@ class RoomState:
         self.host_id = host_id
         self.clients: Dict[str, ClientSession] = {}
         self.host_only_control: bool = False
-        self.video_type: Optional[str] = None
+        self.video_type: Optional[str] = None  # "hls" | "direct" | "youtube" | "iframe"
         self.video_url: Optional[str] = None
         self.is_playing: bool = False
         self.current_time: float = 0.0
@@ -93,7 +93,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
     await websocket.accept()
     try:
         init_payload = await websocket.receive_json()
-        nickname = init_payload.get("nickname") or f"Guest_{str(uuid.uuid4())[:4]}"
+        nickname = str(init_payload.get("nickname", "")).strip() or f"User_{str(uuid.uuid4())[:4]}"
     except Exception:
         await websocket.close()
         return
@@ -119,7 +119,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                 await websocket.send_json({
                     "type": "PONG",
                     "clientPingTime": data.get("time"),
-                    "serverTime": time.time()
+                    "serverTime": time.time(),
                 })
                 continue
 
@@ -135,7 +135,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
 
             elif event_type == "SYNC_ACTION" and can_control:
                 action = data.get("action")
-                target_time = float(data.get("time", 0.0))
+                target_time = max(0.0, float(data.get("time", 0.0)))
                 room.current_time = target_time
                 room.last_updated_at = time.time()
 
@@ -156,7 +156,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                 await broadcast(room, {
                     "type": "HOST_CONTROL_TOGGLED",
                     "hostOnlyControl": room.host_only_control,
-                    "room": room.to_dict()
+                    "room": room.to_dict(),
                 })
 
             elif event_type == "CHAT_MESSAGE":
@@ -181,14 +181,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
             })
 
 async def broadcast(room: RoomState, message: dict):
-    disconnected = []
-    for client_id, session in list(room.clients.items()):
+    dead_clients = []
+    for cid, session in list(room.clients.items()):
         try:
             await session.ws.send_json(message)
         except Exception:
-            disconnected.append(client_id)
-    for client_id in disconnected:
-        await hub.remove_client(room.room_id, client_id)
+            dead_clients.append(cid)
+    for cid in dead_clients:
+        await hub.remove_client(room.room_id, cid)
 
 if __name__ == "__main__":
     import uvicorn

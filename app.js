@@ -1,5 +1,6 @@
 /**
- * SyncStream Client Core
+ * SyncStream Frontend Engine
+ * Universal Media Sync (HLS, HTML5 Video, YouTube, Embed)
  */
 
 const BACKEND_HOST = "syncstream-backend-6x4q.onrender.com";
@@ -12,16 +13,16 @@ const STATE = {
   ws: null,
   reconnectAttempts: 0,
   pingInterval: null,
-  activePlayerType: null,
+  activeType: null, // "hls" | "direct" | "youtube" | "iframe" | null
   ytPlayer: null,
   ytReady: false,
+  hlsInstance: null,
   isApplyingRemote: false,
   driftThreshold: 1.5,
   hostOnlyControl: false,
-  rtt: 0,
 };
 
-// DOM References
+// DOM узлы
 const elLobby = document.getElementById("view-lobby");
 const elRoom = document.getElementById("view-room");
 const inputNickname = document.getElementById("input-nickname");
@@ -35,16 +36,17 @@ const labelPing = document.getElementById("label-ping");
 const syncStatusIndicator = document.getElementById("sync-status-indicator");
 const btnCopyLink = document.getElementById("btn-copy-link");
 const btnOpenSource = document.getElementById("btn-open-source");
-const btnPlaceholderAdd = document.getElementById("btn-placeholder-add");
+const btnEmptySelect = document.getElementById("btn-empty-select");
 
 const nativeVideo = document.getElementById("native-video");
 const ytContainer = document.getElementById("youtube-player");
-const playerPlaceholder = document.getElementById("player-placeholder");
+const embedIframe = document.getElementById("embed-iframe");
+const playerEmpty = document.getElementById("player-empty");
 
 const btnPlayPause = document.getElementById("btn-play-pause");
 const iconPlay = document.getElementById("icon-play");
 const iconPause = document.getElementById("icon-pause");
-const timelineRange = document.getElementById("timeline-range");
+const timelineSlider = document.getElementById("timeline-slider");
 const timecode = document.getElementById("timecode");
 const btnFullscreen = document.getElementById("btn-fullscreen");
 
@@ -52,27 +54,27 @@ const tabChat = document.getElementById("tab-chat");
 const tabUsers = document.getElementById("tab-users");
 const paneChat = document.getElementById("pane-chat");
 const paneUsers = document.getElementById("pane-users");
-const chatMessages = document.getElementById("chat-messages");
-const chatForm = document.getElementById("chat-form");
-const chatInput = document.getElementById("chat-input");
-const userList = document.getElementById("user-list");
+const chatStream = document.getElementById("chat-stream");
+const chatInputForm = document.getElementById("chat-input-form");
+const chatMessageField = document.getElementById("chat-message-field");
+const userDirectory = document.getElementById("user-directory");
 const userCount = document.getElementById("user-count");
-const checkHostOnly = document.getElementById("check-host-only");
+const checkHostLock = document.getElementById("check-host-lock");
 
 const dialogSource = document.getElementById("dialog-source");
-const inputVideoUrl = document.getElementById("input-video-url");
-const btnDialogCancel = document.getElementById("btn-dialog-cancel");
-const btnDialogConfirm = document.getElementById("btn-dialog-confirm");
-const btnCloseDialog = document.getElementById("btn-close-dialog");
+const inputVideoSource = document.getElementById("input-video-source");
+const btnDialogAbort = document.getElementById("btn-dialog-abort");
+const btnDialogApply = document.getElementById("btn-dialog-apply");
+const btnDialogClose = document.getElementById("btn-dialog-close");
 
-const btnToggleChatMode = document.getElementById("btn-toggle-chat-mode");
-const interactivePanel = document.getElementById("interactive-panel");
+const btnToggleChatOverlay = document.getElementById("btn-toggle-chat-overlay");
+const panelContainer = document.getElementById("panel-container");
 
 window.addEventListener("DOMContentLoaded", () => {
-  initNickname();
+  initIdentity();
   initRouting();
-  setupUIEvents();
-  initNativeVideoEvents();
+  bindUserInterface();
+  bindMediaPipeline();
 });
 
 window.addEventListener("hashchange", () => {
@@ -86,28 +88,29 @@ window.onYouTubeIframeAPIReady = () => {
   STATE.ytReady = true;
 };
 
-/* ================= 1. ИДЕНТИФИКАЦИЯ И РОУТИНГ ================= */
+/* ==========================================================================
+   1. ИДЕНТИФИКАЦИЯ И РОУТИНГ
+   ========================================================================== */
 
-function getRandomNickname() {
-  const num = Math.floor(1000 + Math.random() * 9000);
-  return `User_${num}`;
+function generateIdentity() {
+  return `User_${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
-function initNickname() {
-  const saved = localStorage.getItem("syncstream_nick");
-  STATE.nickname = saved || getRandomNickname();
+function initIdentity() {
+  const stored = localStorage.getItem("syncstream_nick");
+  STATE.nickname = stored || generateIdentity();
   inputNickname.value = STATE.nickname;
 }
 
 btnDice.addEventListener("click", () => {
-  STATE.nickname = getRandomNickname();
+  STATE.nickname = generateIdentity();
   inputNickname.value = STATE.nickname;
   localStorage.setItem("syncstream_nick", STATE.nickname);
 });
 
 inputNickname.addEventListener("change", () => {
-  const val = inputNickname.value.trim();
-  STATE.nickname = val || getRandomNickname();
+  const clean = inputNickname.value.trim();
+  STATE.nickname = clean || generateIdentity();
   inputNickname.value = STATE.nickname;
   localStorage.setItem("syncstream_nick", STATE.nickname);
 });
@@ -120,16 +123,16 @@ function initRouting() {
 }
 
 btnCreateRoom.addEventListener("click", () => {
-  const newRoomId = `room-${Math.random().toString(36).substring(2, 7)}`;
-  enterRoom(newRoomId);
+  const randomRoomId = `room-${Math.random().toString(36).substring(2, 7)}`;
+  enterRoom(randomRoomId);
 });
 
 btnJoinRoom.addEventListener("click", () => {
-  const rid = inputRoomId.value.trim();
-  if (rid) {
-    enterRoom(rid);
+  const targetId = inputRoomId.value.trim();
+  if (targetId) {
+    enterRoom(targetId);
   } else {
-    showToast("Введите код комнаты (например: room-xyz)");
+    showToast("Укажите код комнаты");
     inputRoomId.focus();
   }
 });
@@ -141,17 +144,18 @@ function enterRoom(roomId) {
     window.location.hash = `#${roomId}`;
   }
 
-  // Принудительное переключение экранов
   elLobby.setAttribute("hidden", "");
   elRoom.removeAttribute("hidden");
   labelRoomId.textContent = roomId.toUpperCase();
 
-  connectWebSocket(roomId);
+  initiateWebSocket(roomId);
 }
 
-/* ================= 2. WEBSOCKET SYNC ENGINE ================= */
+/* ==========================================================================
+   2. WEBSOCKET SYNC ENGINE
+   ========================================================================== */
 
-function connectWebSocket(roomId) {
+function initiateWebSocket(roomId) {
   if (STATE.ws) {
     STATE.ws.onclose = null;
     STATE.ws.close();
@@ -161,31 +165,31 @@ function connectWebSocket(roomId) {
   const protocol = isLocal ? "ws:" : "wss:";
   const wsUrl = `${protocol}//${BACKEND_HOST}/ws/${roomId}`;
 
-  updateSyncIndicator("syncing");
+  setSyncState("syncing");
   labelPing.textContent = "Connecting...";
 
   STATE.ws = new WebSocket(wsUrl);
 
   STATE.ws.onopen = () => {
     STATE.reconnectAttempts = 0;
-    updateSyncIndicator("in-sync");
+    setSyncState("in-sync");
     STATE.ws.send(JSON.stringify({ nickname: STATE.nickname }));
-    startHeartbeat();
+    startHeartbeatMonitor();
   };
 
   STATE.ws.onmessage = (event) => {
     try {
-      const msg = JSON.parse(event.data);
-      handleServerEvent(msg);
+      const payload = JSON.parse(event.data);
+      dispatchRemoteEvent(payload);
     } catch (err) {
-      console.error("WS Parse Error:", err);
+      console.error("Payload parse failure:", err);
     }
   };
 
   STATE.ws.onclose = () => {
-    stopHeartbeat();
-    updateSyncIndicator("error");
-    scheduleReconnect();
+    stopHeartbeatMonitor();
+    setSyncState("error");
+    scheduleAutoReconnect();
   };
 
   STATE.ws.onerror = () => {
@@ -193,19 +197,19 @@ function connectWebSocket(roomId) {
   };
 }
 
-function scheduleReconnect() {
+function scheduleAutoReconnect() {
   STATE.reconnectAttempts++;
-  const delay = Math.min(1000 * Math.pow(1.5, STATE.reconnectAttempts), 10000);
+  const backoff = Math.min(1000 * Math.pow(1.5, STATE.reconnectAttempts), 10000);
   labelPing.textContent = "Reconnecting...";
   setTimeout(() => {
     if (!elRoom.hasAttribute("hidden")) {
-      connectWebSocket(STATE.roomId);
+      initiateWebSocket(STATE.roomId);
     }
-  }, delay);
+  }, backoff);
 }
 
-function startHeartbeat() {
-  stopHeartbeat();
+function startHeartbeatMonitor() {
+  stopHeartbeatMonitor();
   STATE.pingInterval = setInterval(() => {
     if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
       STATE.ws.send(JSON.stringify({ type: "PING", time: performance.now() }));
@@ -213,109 +217,152 @@ function startHeartbeat() {
   }, 3000);
 }
 
-function stopHeartbeat() {
+function stopHeartbeatMonitor() {
   if (STATE.pingInterval) clearInterval(STATE.pingInterval);
 }
 
-function handleServerEvent(msg) {
+function dispatchRemoteEvent(msg) {
   switch (msg.type) {
     case "PONG": {
-      const rtt = Math.round(performance.now() - msg.clientPingTime);
-      STATE.rtt = rtt;
-      labelPing.textContent = `${rtt} ms`;
+      const latency = Math.round(performance.now() - msg.clientPingTime);
+      labelPing.textContent = `${latency} ms`;
       break;
     }
     case "USER_JOINED":
     case "USER_LEFT":
-      renderUsers(msg.room);
+      renderUserDirectory(msg.room);
       break;
     case "SOURCE_CHANGED":
-      applySource(msg.room.videoType, msg.room.videoUrl);
+      mountUniversalSource(msg.room.videoType, msg.room.videoUrl);
       break;
     case "SYNC_EVENT":
-      handleSyncAction(msg);
+      executeRemoteSync(msg);
       break;
     case "HOST_CONTROL_TOGGLED":
       STATE.hostOnlyControl = msg.hostOnlyControl;
-      checkHostOnly.checked = STATE.hostOnlyControl;
+      checkHostLock.checked = STATE.hostOnlyControl;
       break;
     case "NEW_MESSAGE":
-      renderChatMessage(msg);
+      renderMessageRow(msg);
       break;
   }
 }
 
-function sendSyncAction(action, time) {
+function broadcastSync(action, time) {
   if (STATE.isApplyingRemote) return;
   if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
     STATE.ws.send(JSON.stringify({
       type: "SYNC_ACTION",
       action: action,
-      time: time
+      time: time,
     }));
   }
 }
 
-function handleSyncAction(payload) {
+function executeRemoteSync(payload) {
   const { action, room } = payload;
-  const targetTime = room.currentTime;
+  const serverTime = room.currentTime;
 
   STATE.isApplyingRemote = true;
 
-  const currentLocalTime = getActivePlayerCurrentTime();
-  const timeDiff = Math.abs(currentLocalTime - targetTime);
+  const localTime = readCurrentPlaybackTime();
+  const variance = Math.abs(localTime - serverTime);
 
-  if (timeDiff > STATE.driftThreshold || action === "SEEK") {
-    seekActivePlayer(targetTime);
+  if (variance > STATE.driftThreshold || action === "SEEK") {
+    seekPlaybackTo(serverTime);
   }
 
   if (action === "PLAY") {
-    playActivePlayer();
-    setPlayPauseIcon(true);
+    triggerPlaybackStart();
+    updatePlaybackIcon(true);
   } else if (action === "PAUSE") {
-    pauseActivePlayer();
-    setPlayPauseIcon(false);
+    triggerPlaybackPause();
+    updatePlaybackIcon(false);
   }
 
   setTimeout(() => {
     STATE.isApplyingRemote = false;
-  }, 100);
+  }, 120);
 }
 
-function updateSyncIndicator(status) {
-  syncStatusIndicator.className = "status-indicator " + status;
+function setSyncState(status) {
+  syncStatusIndicator.className = `status-dot ${status}`;
 }
 
-/* ================= 3. МЕДИАПЛЕЕРЫ ================= */
+/* ==========================================================================
+   3. УНИВЕРСАЛЬНЫЙ МЕДИА-ДВИЖОК (HLS, MP4, YouTube, Iframe)
+   ========================================================================== */
 
-function applySource(type, url) {
-  if (!url) return;
+function detectMediaType(rawInput) {
+  const clean = rawInput.trim();
 
-  playerPlaceholder.style.display = "none";
-  destroyPlayers();
-
-  if (type === "youtube") {
-    STATE.activePlayerType = "youtube";
-    ytContainer.classList.add("active");
-    nativeVideo.classList.remove("active");
-    loadYouTubeVideo(extractYouTubeId(url));
-  } else {
-    STATE.activePlayerType = "native";
-    nativeVideo.classList.add("active");
-    ytContainer.classList.remove("active");
-    nativeVideo.src = url;
-    nativeVideo.load();
+  if (clean.includes("youtube.com") || clean.includes("youtu.be")) {
+    return "youtube";
   }
+
+  if (clean.includes(".m3u8")) {
+    return "hls";
+  }
+
+  const directExtensions = [".mp4", ".webm", ".ogg", ".mov", ".m4v"];
+  if (directExtensions.some(ext => clean.toLowerCase().includes(ext))) {
+    return "direct";
+  }
+
+  return "iframe";
 }
 
-function extractYouTubeId(url) {
+function parseYouTubeId(url) {
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/);
   return match ? match[1] : url;
 }
 
-function loadYouTubeVideo(videoId) {
+function cleanEmbedUrl(input) {
+  const iframeMatch = input.match(/src=["'](.*?)["']/);
+  return iframeMatch ? iframeMatch[1] : input;
+}
+
+function mountUniversalSource(type, rawUrl) {
+  if (!rawUrl) return;
+
+  playerEmpty.style.display = "none";
+  terminateActiveEngines();
+  STATE.activeType = type;
+
+  if (type === "youtube") {
+    ytContainer.classList.add("active");
+    loadYouTubeInstance(parseYouTubeId(rawUrl));
+  } else if (type === "hls") {
+    nativeVideo.classList.add("active");
+    loadHlsStream(rawUrl);
+  } else if (type === "direct") {
+    nativeVideo.classList.add("active");
+    nativeVideo.src = rawUrl;
+    nativeVideo.load();
+  } else if (type === "iframe") {
+    embedIframe.classList.add("active");
+    embedIframe.src = cleanEmbedUrl(rawUrl);
+  }
+}
+
+function loadHlsStream(url) {
+  if (window.Hls && window.Hls.isSupported()) {
+    STATE.hlsInstance = new window.Hls({
+      enableWorker: true,
+      lowLatencyMode: true,
+    });
+    STATE.hlsInstance.loadSource(url);
+    STATE.hlsInstance.attachMedia(nativeVideo);
+  } else if (nativeVideo.canPlayType("application/vnd.apple.mpegurl")) {
+    nativeVideo.src = url;
+  } else {
+    showToast("HLS не поддерживается в данном браузере");
+  }
+}
+
+function loadYouTubeInstance(videoId) {
   if (!STATE.ytReady) {
-    setTimeout(() => loadYouTubeVideo(videoId), 200);
+    setTimeout(() => loadYouTubeInstance(videoId), 200);
     return;
   }
 
@@ -330,295 +377,317 @@ function loadYouTubeVideo(videoId) {
       playsinline: 1,
     },
     events: {
-      onStateChange: (event) => {
+      onStateChange: (e) => {
         if (STATE.isApplyingRemote) return;
-        if (event.data === YT.PlayerState.PLAYING) {
-          sendSyncAction("PLAY", STATE.ytPlayer.getCurrentTime());
-          setPlayPauseIcon(true);
-        } else if (event.data === YT.PlayerState.PAUSED) {
-          sendSyncAction("PAUSE", STATE.ytPlayer.getCurrentTime());
-          setPlayPauseIcon(false);
+        if (e.data === YT.PlayerState.PLAYING) {
+          broadcastSync("PLAY", STATE.ytPlayer.getCurrentTime());
+          updatePlaybackIcon(true);
+        } else if (e.data === YT.PlayerState.PAUSED) {
+          broadcastSync("PAUSE", STATE.ytPlayer.getCurrentTime());
+          updatePlaybackIcon(false);
         }
-      }
-    }
+      },
+    },
   });
 }
 
-function destroyPlayers() {
+function terminateActiveEngines() {
+  if (STATE.hlsInstance) {
+    STATE.hlsInstance.destroy();
+    STATE.hlsInstance = null;
+  }
+
   if (STATE.ytPlayer && typeof STATE.ytPlayer.destroy === "function") {
     STATE.ytPlayer.destroy();
     STATE.ytPlayer = null;
   }
+
   nativeVideo.pause();
   nativeVideo.removeAttribute("src");
   nativeVideo.load();
-  STATE.activePlayerType = null;
+
+  embedIframe.src = "about:blank";
+
+  nativeVideo.classList.remove("active");
+  ytContainer.classList.remove("active");
+  embedIframe.classList.remove("active");
+
+  STATE.activeType = null;
 }
 
-function initNativeVideoEvents() {
+function bindMediaPipeline() {
   nativeVideo.addEventListener("play", () => {
     if (!STATE.isApplyingRemote) {
-      sendSyncAction("PLAY", nativeVideo.currentTime);
-      setPlayPauseIcon(true);
+      broadcastSync("PLAY", nativeVideo.currentTime);
+      updatePlaybackIcon(true);
     }
   });
 
   nativeVideo.addEventListener("pause", () => {
     if (!STATE.isApplyingRemote) {
-      sendSyncAction("PAUSE", nativeVideo.currentTime);
-      setPlayPauseIcon(false);
+      broadcastSync("PAUSE", nativeVideo.currentTime);
+      updatePlaybackIcon(false);
     }
   });
 
-  nativeVideo.addEventListener("timeupdate", updateTimelineProgress);
-  setInterval(updateTimelineProgress, 500);
+  nativeVideo.addEventListener("timeupdate", refreshTimelinePosition);
+  setInterval(refreshTimelinePosition, 500);
 }
 
-function getActivePlayerCurrentTime() {
-  if (STATE.activePlayerType === "native") {
+function readCurrentPlaybackTime() {
+  if (STATE.activeType === "direct" || STATE.activeType === "hls") {
     return nativeVideo.currentTime || 0;
   }
-  if (STATE.activePlayerType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.getCurrentTime) {
+  if (STATE.activeType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.getCurrentTime) {
     return STATE.ytPlayer.getCurrentTime() || 0;
   }
   return 0;
 }
 
-function getActivePlayerDuration() {
-  if (STATE.activePlayerType === "native") {
+function readTotalDuration() {
+  if (STATE.activeType === "direct" || STATE.activeType === "hls") {
     return nativeVideo.duration || 0;
   }
-  if (STATE.activePlayerType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.getDuration) {
+  if (STATE.activeType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.getDuration) {
     return STATE.ytPlayer.getDuration() || 0;
   }
   return 0;
 }
 
-function seekActivePlayer(seconds) {
-  if (STATE.activePlayerType === "native") {
+function seekPlaybackTo(seconds) {
+  if (STATE.activeType === "direct" || STATE.activeType === "hls") {
     nativeVideo.currentTime = seconds;
-  } else if (STATE.activePlayerType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.seekTo) {
+  } else if (STATE.activeType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.seekTo) {
     STATE.ytPlayer.seekTo(seconds, true);
   }
 }
 
-function playActivePlayer() {
-  if (STATE.activePlayerType === "native") {
+function triggerPlaybackStart() {
+  if (STATE.activeType === "direct" || STATE.activeType === "hls") {
     nativeVideo.play().catch(() => {});
-  } else if (STATE.activePlayerType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.playVideo) {
+  } else if (STATE.activeType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.playVideo) {
     STATE.ytPlayer.playVideo();
   }
 }
 
-function pauseActivePlayer() {
-  if (STATE.activePlayerType === "native") {
+function triggerPlaybackPause() {
+  if (STATE.activeType === "direct" || STATE.activeType === "hls") {
     nativeVideo.pause();
-  } else if (STATE.activePlayerType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.pauseVideo) {
+  } else if (STATE.activeType === "youtube" && STATE.ytPlayer && STATE.ytPlayer.pauseVideo) {
     STATE.ytPlayer.pauseVideo();
   }
 }
 
-function setPlayPauseIcon(isPlaying) {
+function updatePlaybackIcon(isPlaying) {
   iconPlay.hidden = isPlaying;
   iconPause.hidden = !isPlaying;
 }
 
-/* ================= 4. ТАЙМЛАЙН И КОНТРОЛЫ ================= */
+/* ==========================================================================
+   4. ТАЙМЛАЙН И ТРАНСПОРТ
+   ========================================================================== */
 
-function formatTime(totalSec) {
-  if (isNaN(totalSec) || !isFinite(totalSec)) return "00:00";
-  const m = Math.floor(totalSec / 60);
-  const s = Math.floor(totalSec % 60);
-  return `${m < 10 ? "0" + m : m}:${s < 10 ? "0" + s : s}`;
+function formatDigitalTime(seconds) {
+  if (isNaN(seconds) || !isFinite(seconds)) return "00:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m < 10 ? `0${m}` : m}:${s < 10 ? `0${s}` : s}`;
 }
 
-function updateTimelineProgress() {
-  const current = getActivePlayerCurrentTime();
-  const dur = getActivePlayerDuration();
+function refreshTimelinePosition() {
+  const current = readCurrentPlaybackTime();
+  const total = readTotalDuration();
 
-  timecode.textContent = `${formatTime(current)} / ${formatTime(dur)}`;
+  timecode.textContent = `${formatDigitalTime(current)} / ${formatDigitalTime(total)}`;
 
-  if (dur > 0) {
-    timelineRange.value = (current / dur) * 100;
+  if (total > 0) {
+    timelineSlider.value = (current / total) * 100;
   } else {
-    timelineRange.value = 0;
+    timelineSlider.value = 0;
   }
 }
 
-timelineRange.addEventListener("input", () => {
-  const dur = getActivePlayerDuration();
-  if (dur > 0) {
-    const target = (timelineRange.value / 100) * dur;
-    seekActivePlayer(target);
-    sendSyncAction("SEEK", target);
+timelineSlider.addEventListener("input", () => {
+  const total = readTotalDuration();
+  if (total > 0) {
+    const target = (timelineSlider.value / 100) * total;
+    seekPlaybackTo(target);
+    broadcastSync("SEEK", target);
   }
 });
 
 btnPlayPause.addEventListener("click", () => {
   const isPlaying = !iconPlay.hidden;
   if (isPlaying) {
-    playActivePlayer();
-    sendSyncAction("PLAY", getActivePlayerCurrentTime());
+    triggerPlaybackStart();
+    broadcastSync("PLAY", readCurrentPlaybackTime());
   } else {
-    pauseActivePlayer();
-    sendSyncAction("PAUSE", getActivePlayerCurrentTime());
+    triggerPlaybackPause();
+    broadcastSync("PAUSE", readCurrentPlaybackTime());
   }
 });
 
 btnFullscreen.addEventListener("click", () => {
-  const wrapper = document.getElementById("player-wrapper");
+  const target = document.getElementById("player-viewport");
   if (!document.fullscreenElement) {
-    wrapper.requestFullscreen().catch(() => {});
+    target.requestFullscreen().catch(() => {});
   } else {
     document.exitFullscreen().catch(() => {});
   }
 });
 
-/* ================= 5. ЧАТ ================= */
+/* ==========================================================================
+   5. ЧАТ И ЗАЩИТА XSS
+   ========================================================================== */
 
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+function sanitizeText(raw) {
+  const container = document.createElement("div");
+  container.textContent = raw;
+  return container.innerHTML;
 }
 
-chatForm.addEventListener("submit", () => {
-  const val = chatInput.value.trim();
-  if (!val || !STATE.ws || STATE.ws.readyState !== WebSocket.OPEN) return;
+chatInputForm.addEventListener("submit", () => {
+  const text = chatMessageField.value.trim();
+  if (!text || !STATE.ws || STATE.ws.readyState !== WebSocket.OPEN) return;
 
   STATE.ws.send(JSON.stringify({
     type: "CHAT_MESSAGE",
-    text: val
+    text: text,
   }));
 
-  chatInput.value = "";
+  chatMessageField.value = "";
 });
 
-function renderChatMessage(msg) {
+function renderMessageRow(msg) {
   const isSelf = msg.senderNick === STATE.nickname;
-  const time = new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const timeFormatted = new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  const msgDiv = document.createElement("div");
-  msgDiv.className = "chat-msg";
-  msgDiv.innerHTML = `
-    <div class="msg-header">
-      <span class="msg-author ${isSelf ? "is-self" : ""}">${escapeHtml(msg.senderNick)}</span>
-      <span class="msg-time">${time}</span>
+  const row = document.createElement("div");
+  row.className = "chat-entry";
+  row.innerHTML = `
+    <div class="chat-entry-head">
+      <span class="chat-author ${isSelf ? "self" : ""}">${sanitizeText(msg.senderNick)}</span>
+      <span class="chat-timestamp">${timeFormatted}</span>
     </div>
-    <div class="msg-body">${escapeHtml(msg.text)}</div>
+    <div class="chat-text">${sanitizeText(msg.text)}</div>
   `;
 
-  chatMessages.appendChild(msgDiv);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
+  chatStream.appendChild(row);
+  chatStream.scrollTop = chatStream.scrollHeight;
 }
 
-/* ================= 6. УЧАСТНИКИ ================= */
+/* ==========================================================================
+   6. СПИСОК УЧАСТНИКОВ И ПРАВА ХОСТА
+   ========================================================================== */
 
-function renderUsers(room) {
+function renderUserDirectory(room) {
   userCount.textContent = room.clientCount;
-  userList.innerHTML = "";
+  userDirectory.innerHTML = "";
 
-  const selfId = room.users.find(u => u.nickname === STATE.nickname)?.id;
-  STATE.isHost = (selfId === room.hostId);
+  const selfRecord = room.users.find(u => u.nickname === STATE.nickname);
+  STATE.isHost = Boolean(selfRecord && selfRecord.id === room.hostId);
 
-  checkHostOnly.disabled = !STATE.isHost;
+  checkHostLock.disabled = !STATE.isHost;
 
-  room.users.forEach(user => {
+  room.users.forEach((u) => {
     const li = document.createElement("li");
-    li.className = "user-item";
+    li.className = "user-record";
     li.innerHTML = `
-      <span>${escapeHtml(user.nickname)}</span>
-      ${user.isHost ? '<span class="badge-host">Host</span>' : ""}
+      <span>${sanitizeText(u.nickname)}</span>
+      ${u.isHost ? '<span class="role-tag-host">Host</span>' : ""}
     `;
-    userList.appendChild(li);
+    userDirectory.appendChild(li);
   });
 }
 
-checkHostOnly.addEventListener("change", () => {
+checkHostLock.addEventListener("change", () => {
   if (STATE.isHost && STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
     STATE.ws.send(JSON.stringify({
       type: "SET_HOST_ONLY",
-      enabled: checkHostOnly.checked
+      enabled: checkHostLock.checked,
     }));
   }
 });
 
-/* ================= 7. ИСТОЧНИК ВИДЕО ================= */
+/* ==========================================================================
+   7. ДИАЛОГ СМЕНЫ ИСТОЧНИКА
+   ========================================================================== */
 
-function openSourceDialog() {
+function launchSourceDialog() {
   dialogSource.showModal();
-  inputVideoUrl.focus();
+  inputVideoSource.focus();
 }
 
-btnOpenSource.addEventListener("click", openSourceDialog);
-btnPlaceholderAdd.addEventListener("click", openSourceDialog);
+btnOpenSource.addEventListener("click", launchSourceDialog);
+btnEmptySelect.addEventListener("click", launchSourceDialog);
 
-btnCloseDialog.addEventListener("click", () => dialogSource.close());
-btnDialogCancel.addEventListener("click", () => dialogSource.close());
+btnDialogClose.addEventListener("click", () => dialogSource.close());
+btnDialogAbort.addEventListener("click", () => dialogSource.close());
 
-btnDialogConfirm.addEventListener("click", () => {
-  const url = inputVideoUrl.value.trim();
-  if (!url) return;
+btnDialogApply.addEventListener("click", () => {
+  const inputVal = inputVideoSource.value.trim();
+  if (!inputVal) return;
 
-  const isYt = /youtu\.?be/.test(url);
-  const type = isYt ? "youtube" : "direct";
+  const detectedType = detectMediaType(inputVal);
 
   if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
     STATE.ws.send(JSON.stringify({
       type: "LOAD_SOURCE",
-      videoType: type,
-      videoUrl: url
+      videoType: detectedType,
+      videoUrl: inputVal,
     }));
   }
 
   dialogSource.close();
-  inputVideoUrl.value = "";
+  inputVideoSource.value = "";
 });
 
-/* ================= 8. ТАБЫ И ШАРИНГ ================= */
+/* ==========================================================================
+   8. ПАНЕЛИ, ШАРИНГ И ТОСТЫ
+   ========================================================================== */
 
-tabChat.addEventListener("click", () => {
-  tabChat.classList.add("active");
-  tabUsers.classList.remove("active");
-  paneChat.removeAttribute("hidden");
-  paneUsers.setAttribute("hidden", "");
-});
+function bindUserInterface() {
+  tabChat.addEventListener("click", () => {
+    tabChat.classList.add("active");
+    tabUsers.classList.remove("active");
+    paneChat.removeAttribute("hidden");
+    paneUsers.setAttribute("hidden", "");
+  });
 
-tabUsers.addEventListener("click", () => {
-  tabUsers.classList.add("active");
-  tabChat.classList.remove("active");
-  paneUsers.removeAttribute("hidden");
-  paneChat.setAttribute("hidden", "");
-});
+  tabUsers.addEventListener("click", () => {
+    tabUsers.classList.add("active");
+    tabChat.classList.remove("active");
+    paneUsers.removeAttribute("hidden");
+    paneChat.setAttribute("hidden", "");
+  });
 
-btnCopyLink.addEventListener("click", async () => {
-  try {
-    await navigator.clipboard.writeText(window.location.href);
-    showToast("Ссылка скопирована в буфер");
-  } catch (err) {
-    showToast("Ошибка копирования ссылки");
-  }
-});
-
-btnToggleChatMode.addEventListener("click", () => {
-  interactivePanel.classList.toggle("open");
-});
-
-function showToast(text) {
-  const container = document.getElementById("toast-container");
-  const t = document.createElement("div");
-  t.className = "toast";
-  t.textContent = text;
-  container.appendChild(t);
-  setTimeout(() => {
-    t.remove();
-  }, 2500);
-}
-
-function setupUIEvents() {
-  window.addEventListener("resize", () => {
-    if (window.innerWidth > 768) {
-      interactivePanel.classList.remove("open");
+  btnCopyLink.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      showToast("Ссылка скопирована в буфер");
+    } catch (e) {
+      showToast("Не удалось скопировать");
     }
   });
+
+  btnToggleChatOverlay.addEventListener("click", () => {
+    panelContainer.classList.toggle("drawer-open");
+  });
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 839) {
+      panelContainer.classList.remove("drawer-open");
+    }
+  });
+}
+
+function showToast(message) {
+  const shelf = document.getElementById("toast-shelf");
+  const el = document.createElement("div");
+  el.className = "toast-item";
+  el.textContent = message;
+  shelf.appendChild(el);
+  setTimeout(() => {
+    el.remove();
+  }, 2400);
 }

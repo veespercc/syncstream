@@ -3,33 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>SyncStream — Синхронный просмотр</title>
+  <title>SyncStream — Синхронный медиа-просмотр</title>
   <link rel="stylesheet" href="./style.css">
-  <link rel="preconnect" href="https://www.youtube.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
 </head>
 <body>
-  <!-- Экран 1: Лобби / Вход -->
-  <main id="view-lobby" class="lobby-screen" aria-label="Вход в сервис">
-    <div class="lobby-card">
+  <!-- Экран 1: Лобби -->
+  <main id="view-lobby" class="screen-lobby" aria-label="Вход в сервис">
+    <div class="card-lobby">
       <header class="lobby-header">
-        <div class="brand-mark">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <div class="brand">
+          <svg class="brand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
             <line x1="19" y1="5" x2="19" y2="19"></line>
           </svg>
-          <span class="brand-title">SyncStream</span>
+          <span class="brand-name">SyncStream</span>
         </div>
-        <p class="brand-desc">Синхронный просмотр видео без авторизации и логов.</p>
+        <h1 class="lobby-headline">Синхронный просмотр без ограничений.</h1>
+        <p class="lobby-subhead">Создайте изолированную комнату для совместного просмотра YouTube, прямых стримов HLS (.m3u8), веб-файлов и онлайн-плееров.</p>
       </header>
 
-      <form id="form-lobby" class="lobby-form" onsubmit="return false;">
+      <form id="form-lobby" class="form-lobby" onsubmit="return false;">
         <div class="field">
-          <label for="input-nickname" class="field-label">Псевдоним</label>
-          <div class="input-action-wrap">
-            <input id="input-nickname" type="text" class="input-text" maxlength="24" placeholder="User_XXXX" autocomplete="off" spellcheck="false">
-            <button type="button" id="btn-dice" class="btn-icon" aria-label="Сгенерировать случайное имя">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+          <label for="input-nickname" class="field-label">Ваш псевдоним</label>
+          <div class="input-cluster">
+            <input id="input-nickname" type="text" class="input-base" maxlength="24" placeholder="User_XXXX" autocomplete="off" spellcheck="false">
+            <button type="button" id="btn-dice" class="btn btn-secondary btn-icon" aria-label="Сгенерировать случайный псевдоним">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="2" width="20" height="20" rx="5"></rect>
                 <circle cx="16" cy="8" r="1.5"></circle>
                 <circle cx="8" cy="16" r="1.5"></circle>
                 <circle cx="12" cy="12" r="1.5"></circle>
@@ -39,15 +40,16 @@
         </div>
 
         <button type="button" id="btn-create-room" class="btn btn-primary btn-block">
-          Создать комнату
+          Создать приватную комнату
         </button>
 
-        <div class="divider">
+        <div class="separator" role="separator">
           <span>или подключиться по ID</span>
         </div>
 
         <div class="join-cluster">
-          <input id="input-room-id" type="text" class="input-text" placeholder="Код (напр. room-8f12)" autocomplete="off">
+          <label for="input-room-id" class="sr-only">Идентификатор комнаты</label>
+          <input id="input-room-id" type="text" class="input-base" placeholder="Код (например, room-a7b2)" autocomplete="off">
           <button type="button" id="btn-join-room" class="btn btn-secondary">
             Войти
           </button>
@@ -57,30 +59,33 @@
   </main>
 
   <!-- Экран 2: Комната просмотра -->
-  <div id="view-room" class="room-screen" hidden>
-    <!-- Верхний бар комнаты -->
-    <header class="room-header">
-      <div class="room-meta">
-        <span class="status-indicator in-sync" id="sync-status-indicator" title="Статус синхронизации"></span>
-        <span class="room-tag" id="label-room-id">ROOM-XXXX</span>
-        <span class="network-ping" id="label-ping">-- ms</span>
+  <div id="view-room" class="screen-room" hidden>
+    <!-- Шапка комнаты -->
+    <header class="room-nav" aria-label="Управление комнатой">
+      <div class="meta-cluster">
+        <span class="status-dot" id="sync-status-indicator" title="Статус соединения"></span>
+        <span class="room-chip" id="label-room-id">ROOM-XXXX</span>
+        <span class="network-metric" id="label-ping">-- ms</span>
       </div>
-      <div class="room-actions">
-        <button id="btn-open-source" class="btn btn-sm btn-secondary" aria-label="Загрузить видео">
+
+      <div class="actions-cluster">
+        <button id="btn-open-source" class="btn btn-secondary btn-sm" aria-label="Сменить источник видео">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
           </svg>
-          <span class="hide-mobile">Источник</span>
+          <span class="hide-compact">Видео</span>
         </button>
-        <button id="btn-copy-link" class="btn btn-sm btn-secondary" aria-label="Скопировать ссылку">
+
+        <button id="btn-copy-link" class="btn btn-secondary btn-sm" aria-label="Скопировать ссылку-приглашение">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <rect x="9" y="9" width="13" height="13" rx="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
-          <span class="hide-mobile">Ссылка</span>
+          <span class="hide-compact">Поделиться</span>
         </button>
-        <button id="btn-toggle-chat-mode" class="btn btn-sm btn-icon show-landscape" aria-label="Открыть чат">
+
+        <button id="btn-toggle-chat-overlay" class="btn btn-secondary btn-icon btn-sm show-landscape-only" aria-label="Открыть панель чата">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
           </svg>
@@ -88,34 +93,37 @@
       </div>
     </header>
 
-    <!-- Основная сцена: Плеер -->
-    <section class="stage-section" aria-label="Медиаплеер">
-      <div id="player-wrapper" class="player-wrapper">
-        <video id="native-video" playsinline preload="auto" class="media-element"></video>
-        <div id="youtube-player" class="media-element"></div>
+    <!-- Сцена плеера -->
+    <section class="stage-container" aria-label="Проигрыватель">
+      <div id="player-viewport" class="player-viewport">
+        <!-- Нативный HTML5 / HLS плеер -->
+        <video id="native-video" class="media-layer" playsinline preload="auto"></video>
 
-        <div id="player-placeholder" class="player-placeholder">
-          <div class="placeholder-content">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="placeholder-icon" aria-hidden="true">
-              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+        <!-- YouTube Iframe API Контейнер -->
+        <div id="youtube-player" class="media-layer"></div>
+
+        <!-- Универсальный веб-embed Iframe -->
+        <iframe id="embed-iframe" class="media-layer" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"></iframe>
+
+        <!-- Заглушка пустого состояния -->
+        <div id="player-empty" class="player-empty-state">
+          <div class="empty-layout">
+            <svg class="empty-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="2" width="20" height="20" rx="2"></rect>
               <line x1="7" y1="2" x2="7" y2="22"></line>
               <line x1="17" y1="2" x2="17" y2="22"></line>
               <line x1="2" y1="12" x2="22" y2="12"></line>
-              <line x1="2" y1="7" x2="7" y2="7"></line>
-              <line x1="2" y1="17" x2="7" y2="17"></line>
-              <line x1="17" y1="17" x2="22" y2="17"></line>
-              <line x1="17" y1="7" x2="22" y2="7"></line>
             </svg>
-            <p class="placeholder-title">Видео не выбрано</p>
-            <p class="placeholder-subtitle">Вставьте ссылку на YouTube или прямой MP4/WebM файл</p>
-            <button id="btn-placeholder-add" class="btn btn-secondary btn-sm">Указать ссылку</button>
+            <h2 class="empty-title">Источник не подключен</h2>
+            <p class="empty-body">Поддерживаются YouTube, стримы .m3u8 (HLS), видеофайлы (.mp4 / .webm) и встраиваемые embed-ссылки.</p>
+            <button id="btn-empty-select" class="btn btn-secondary btn-sm">Вставить ссылку</button>
           </div>
         </div>
       </div>
 
-      <!-- Панель управления плеером -->
-      <div class="controls-bar" id="controls-bar">
-        <button id="btn-play-pause" class="btn-ctrl" aria-label="Воспроизвести / Пауза">
+      <!-- Контрольная панель -->
+      <div class="transport-bar" id="transport-bar">
+        <button id="btn-play-pause" class="btn-transport" aria-label="Воспроизведение / Пауза">
           <svg id="icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
           </svg>
@@ -125,13 +133,13 @@
           </svg>
         </button>
 
-        <div class="timeline-container">
-          <input id="timeline-range" type="range" min="0" max="100" value="0" step="0.1" class="timeline-range" aria-label="Полоса воспроизведения">
+        <div class="timeline-slot">
+          <input id="timeline-slider" type="range" min="0" max="100" value="0" step="0.1" class="timeline-slider" aria-label="Позиция воспроизведения">
         </div>
 
-        <div class="timecode-display" id="timecode">00:00 / 00:00</div>
+        <div class="timecode-readout" id="timecode">00:00 / 00:00</div>
 
-        <button id="btn-fullscreen" class="btn-ctrl" aria-label="Полноэкранный режим">
+        <button id="btn-fullscreen" class="btn-transport" aria-label="Полноэкранный режим">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
           </svg>
@@ -139,21 +147,23 @@
       </div>
     </section>
 
-    <!-- Нижняя зона: Чат и участники -->
-    <aside class="panel-section" id="interactive-panel" aria-label="Чат и список участников">
-      <nav class="panel-tabs" role="tablist">
-        <button id="tab-chat" class="tab-btn active" role="tab" aria-selected="true" aria-controls="pane-chat">Чат</button>
-        <button id="tab-users" class="tab-btn" role="tab" aria-selected="false" aria-controls="pane-users">
+    <!-- Сайдбар: Чат и Участники -->
+    <aside class="panel-container" id="panel-container" aria-label="Интерактивная панель">
+      <nav class="panel-nav" role="tablist">
+        <button id="tab-chat" class="tab-item active" role="tab" aria-selected="true" aria-controls="pane-chat">Чат</button>
+        <button id="tab-users" class="tab-item" role="tab" aria-selected="false" aria-controls="pane-users">
           Участники (<span id="user-count">0</span>)
         </button>
       </nav>
 
-      <div class="tabs-body">
-        <section id="pane-chat" class="tab-pane active" role="tabpanel">
-          <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
-          <form id="chat-form" class="chat-form" onsubmit="return false;">
-            <input id="chat-input" type="text" class="input-text chat-input" placeholder="Сообщение..." autocomplete="off" maxlength="500">
-            <button id="btn-send-message" type="submit" class="btn btn-primary btn-send" aria-label="Отправить">
+      <div class="panel-content">
+        <!-- Чат -->
+        <section id="pane-chat" class="tab-surface active" role="tabpanel">
+          <div id="chat-stream" class="chat-stream" role="log" aria-live="polite"></div>
+          <form id="chat-input-form" class="chat-dock" onsubmit="return false;">
+            <label for="chat-message-field" class="sr-only">Текст сообщения</label>
+            <input id="chat-message-field" type="text" class="input-base chat-input" placeholder="Сообщение..." autocomplete="off" maxlength="500">
+            <button id="btn-chat-send" type="submit" class="btn btn-primary btn-icon" aria-label="Отправить">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -162,48 +172,58 @@
           </form>
         </section>
 
-        <section id="pane-users" class="tab-pane" role="tabpanel" hidden>
-          <div class="host-controls-box" id="host-controls-box">
-            <label class="toggle-control">
-              <input type="checkbox" id="check-host-only">
-              <span class="toggle-mark"></span>
-              <span class="toggle-label">Управление только для хоста</span>
+        <!-- Участники -->
+        <section id="pane-users" class="tab-surface" role="tabpanel" hidden>
+          <div class="host-governance">
+            <label class="control-checkbox">
+              <input type="checkbox" id="check-host-lock">
+              <span class="checkbox-visual"></span>
+              <span class="checkbox-caption">Синхронизация только от хоста</span>
             </label>
           </div>
-          <ul id="user-list" class="user-list" role="list"></ul>
+          <ul id="user-directory" class="user-directory" role="list"></ul>
         </section>
       </div>
     </aside>
   </div>
 
-  <!-- Диалог источника видео -->
-  <dialog id="dialog-source" class="modal-dialog" aria-labelledby="dialog-title">
-    <div class="modal-box">
-      <header class="modal-header">
-        <h2 id="dialog-title" class="modal-title">Подключить видео</h2>
-        <button id="btn-close-dialog" class="btn-icon" aria-label="Закрыть">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <!-- Модальное окно смены источника -->
+  <dialog id="dialog-source" class="modal-surface" aria-labelledby="dialog-title">
+    <div class="modal-frame">
+      <header class="modal-masthead">
+        <h2 id="dialog-title" class="modal-heading">Подключить источник видео</h2>
+        <button id="btn-dialog-close" class="btn btn-secondary btn-icon btn-sm" aria-label="Закрыть модальное окно">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
       </header>
-      <div class="modal-body">
-        <p class="modal-hint">Поддерживаются прямые ссылки на YouTube (видео и shorts) или URL на MP4 / WebM файлы.</p>
+      <div class="modal-content">
+        <p class="modal-notice">
+          <strong>Любые поддерживаемые форматы:</strong><br>
+          • <strong>HLS (.m3u8)</strong> потоки с пиратских стриминговых сайтов<br>
+          • Прямые файлы <strong>.mp4 / .webm / .mov</strong><br>
+          • Ссылки <strong>YouTube</strong> (обычные, Shorts, Embed)<br>
+          • Прямой <strong>Embed / Iframe URL</strong> любого внешнего плеера
+        </p>
         <div class="field">
-          <label for="input-video-url" class="field-label">URL видео</label>
-          <input id="input-video-url" type="url" class="input-text" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false" autocomplete="off">
+          <label for="input-video-source" class="field-label">URL видео или HLS-потока</label>
+          <input id="input-video-source" type="text" class="input-base" placeholder="https://domain.com/stream/playlist.m3u8 или YouTube" spellcheck="false" autocomplete="off">
         </div>
       </div>
-      <footer class="modal-footer">
-        <button id="btn-dialog-cancel" type="button" class="btn btn-secondary">Отмена</button>
-        <button id="btn-dialog-confirm" type="button" class="btn btn-primary">Запустить</button>
+      <footer class="modal-actions">
+        <button id="btn-dialog-abort" type="button" class="btn btn-secondary">Отмена</button>
+        <button id="btn-dialog-apply" type="button" class="btn btn-primary">Загрузить</button>
       </footer>
     </div>
   </dialog>
 
-  <div id="toast-container" class="toast-container" aria-live="assertive"></div>
+  <!-- Уведомления -->
+  <div id="toast-shelf" class="toast-shelf" aria-live="polite"></div>
 
+  <!-- Внешние плеерные движки -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script type="module" src="./app.js"></script>
 </body>
